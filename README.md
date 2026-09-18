@@ -82,6 +82,21 @@ Wi-Fi. Open `http://localhost:3000/play?mode=lan` on the laptop. Allow TCP ports
 LAN mode is intended for locally served HTTP pages. An HTTPS Vercel page will
 normally be blocked from connecting to an insecure local `ws://` endpoint.
 
+## Direct WebRTC mode
+
+Direct mode uses Vercel only to serve the pages. After a one-time manual
+pairing exchange, controller commands travel browser-to-browser over WebRTC
+without SpacetimeDB, a local Node server, or a database:
+
+1. Open `/play?mode=direct` on the laptop.
+2. Copy its offer into `/controller?mode=direct` on the phone.
+3. Tap **Create answer** on the phone and copy the answer back to the laptop.
+4. Paste the answer and tap **Connect**.
+
+The pages intentionally use manual signaling so no signaling backend is
+required. Both devices should be on the same Wi-Fi. Maincloud mode remains the
+fallback for networks where direct peer connectivity is restricted.
+
 ### Use the local server from Vercel
 
 For testing without a domain or Cloudflare account, expose the WebSocket server

@@ -12,6 +12,11 @@ export default function Home() {
         <li><a href="/play?mode=lan">Display</a> — open on your laptop</li>
         <li><a href="/controller?mode=lan">Controller</a> — open on a phone on the same Wi-Fi</li>
       </ul>
+      <h3>Direct WebRTC</h3>
+      <ul>
+        <li><a href="/play?mode=direct">Display</a> — creates a one-time connection offer</li>
+        <li><a href="/controller?mode=direct">Controller</a> — returns the connection answer</li>
+      </ul>
     </div>
   );
 }

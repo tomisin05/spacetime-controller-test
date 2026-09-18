@@ -9,11 +9,12 @@ const MODULE_NAME = process.env.NEXT_PUBLIC_SPACETIME_MODULE || "test-hop-hacks-
 function ModeLinks({ mode }) {
   return <div style={{ position: "fixed", top: 16, right: 16 }}>
     <a href="/controller?mode=cloud" style={{ color: mode === "cloud" ? "#6cf" : "#888", marginRight: 12 }}>Cloud</a>
-    <a href="/controller?mode=lan" style={{ color: mode === "lan" ? "#6f6" : "#888" }}>LAN</a>
+    <a href="/controller?mode=lan" style={{ color: mode === "lan" ? "#6f6" : "#888", marginRight: 12 }}>LAN</a>
+    <a href="/controller?mode=direct" style={{ color: mode === "direct" ? "#fc6" : "#888" }}>Direct</a>
   </div>;
 }
 
-function Joystick({ status, rtt, onInput, mode }) {
+function Joystick({ status, rtt, onInput, mode, children }) {
   const joyRef = useRef(null);
   const dragging = useRef(false);
 
@@ -43,6 +44,7 @@ function Joystick({ status, rtt, onInput, mode }) {
     <ModeLinks mode={mode} />
     <div style={{ marginBottom: 24, textAlign: "center", padding: 12 }}>{status}{rtt !== null && ` — RTT: ${rtt}ms`}</div>
     <div ref={joyRef} onPointerDown={startPointer} onPointerUp={stopPointer} onPointerCancel={stopPointer} onPointerMove={handlePointer} style={{ width: 220, height: 220, borderRadius: "50%", border: "2px solid #444", background: "#111" }} />
+    {children}
   </div>;
 }
 
@@ -117,7 +119,86 @@ function LanController() {
   return <Joystick mode="lan" status={status} rtt={rtt} onInput={sendInput} />;
 }
 
+function decodeSignal(value) {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(decodeURIComponent(escape(atob(base64))));
+}
+
+function encodeSignal(value) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(value)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function waitForIce(connection) {
+  if (connection.iceGatheringState === "complete") return Promise.resolve();
+  return new Promise((resolve) => {
+    const listener = () => {
+      if (connection.iceGatheringState === "complete") {
+        connection.removeEventListener("icegatheringstatechange", listener);
+        resolve();
+      }
+    };
+    connection.addEventListener("icegatheringstatechange", listener);
+  });
+}
+
+function DirectController() {
+  const peerRef = useRef(null);
+  const channelRef = useRef(null);
+  const [offer, setOffer] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [status, setStatus] = useState("Paste the offer from the laptop");
+
+  useEffect(() => {
+    const hashOffer = new URLSearchParams(window.location.hash.slice(1)).get("offer");
+    if (hashOffer) setOffer(hashOffer);
+    return () => peerRef.current?.close();
+  }, []);
+
+  async function createAnswer() {
+    try {
+      setStatus("Creating direct connection answer...");
+      const peer = new RTCPeerConnection({ iceServers: [] });
+      peerRef.current = peer;
+      peer.ondatachannel = ({ channel }) => {
+        channelRef.current = channel;
+        channel.onopen = () => setStatus("Connected directly to laptop");
+        channel.onclose = () => setStatus("Direct connection closed");
+        channel.onmessage = ({ data }) => {
+          const message = JSON.parse(data);
+          if (message.type === "ping" && channel.readyState === "open") channel.send(JSON.stringify({ type: "pong", sentAt: message.sentAt }));
+        };
+      };
+      await peer.setRemoteDescription(decodeSignal(offer.trim()));
+      await peer.setLocalDescription(await peer.createAnswer());
+      await waitForIce(peer);
+      setAnswer(encodeSignal(peer.localDescription));
+      setStatus("Send this answer back to the laptop");
+    } catch (error) {
+      setStatus(`Pairing failed: ${error.message}`);
+    }
+  }
+
+  const sendInput = (x, y) => {
+    if (channelRef.current?.readyState === "open") channelRef.current.send(JSON.stringify({ type: "input", x, y }));
+  };
+
+  return <Joystick mode="direct" status={status} rtt={null} onInput={sendInput}>
+    <div style={{ width: "min(92vw, 620px)", marginTop: 24 }}>
+      {!answer && <>
+        <textarea value={offer} onChange={(event) => setOffer(event.target.value)} placeholder="Paste laptop offer" rows={3} style={{ width: "100%", boxSizing: "border-box" }} />
+        <button onClick={createAnswer} disabled={!offer.trim()} style={{ marginTop: 8 }}>Create answer</button>
+      </>}
+      {answer && <>
+        <textarea readOnly value={answer} rows={3} style={{ width: "100%", boxSizing: "border-box" }} />
+        <button onClick={() => navigator.clipboard.writeText(answer)} style={{ marginTop: 8 }}>Copy answer</button>
+      </>}
+    </div>
+  </Joystick>;
+}
+
 export default function Controller() {
   const router = useRouter();
-  return router.query.mode === "lan" ? <LanController /> : <CloudController />;
+  if (router.query.mode === "direct") return <DirectController />;
+  if (router.query.mode === "lan") return <LanController />;
+  return <CloudController />;
 }
