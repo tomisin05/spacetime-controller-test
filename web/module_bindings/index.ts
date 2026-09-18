@@ -34,6 +34,9 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AnswerSignalRoomReducer from "./answer_signal_room_reducer";
+import CreateSignalRoomReducer from "./create_signal_room_reducer";
+import DeleteSignalRoomReducer from "./delete_signal_room_reducer";
 import PingReducer from "./ping_reducer";
 import RegisterAsDisplayReducer from "./register_as_display_reducer";
 import SendInputReducer from "./send_input_reducer";
@@ -43,6 +46,7 @@ import SendInputReducer from "./send_input_reducer";
 // Import all table schema definitions
 import PingLogRow from "./ping_log_table";
 import PlayerRow from "./player_table";
+import SignalRoomRow from "./signal_room_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -70,10 +74,24 @@ const tablesSchema = __schema({
       { name: 'player_identity_key', constraint: 'unique', columns: ['identity'] },
     ],
   }, PlayerRow),
+  signalRoom: __table({
+    name: 'signal_room',
+    indexes: [
+      { accessor: 'code', name: 'signal_room_code_idx_btree', algorithm: 'btree', columns: [
+        'code',
+      ] },
+    ],
+    constraints: [
+      { name: 'signal_room_code_key', constraint: 'unique', columns: ['code'] },
+    ],
+  }, SignalRoomRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("answer_signal_room", AnswerSignalRoomReducer),
+  __reducerSchema("create_signal_room", CreateSignalRoomReducer),
+  __reducerSchema("delete_signal_room", DeleteSignalRoomReducer),
   __reducerSchema("ping", PingReducer),
   __reducerSchema("register_as_display", RegisterAsDisplayReducer),
   __reducerSchema("send_input", SendInputReducer),
@@ -87,6 +105,8 @@ type __SchemaWithTableAccessorAliases = Omit<typeof tablesSchema.schemaType, "ta
   tables: typeof tablesSchema.schemaType.tables & {
     /** @deprecated Use `pingLog` instead. This alias will be removed in the next major version. */
     readonly "ping_log": Omit<typeof tablesSchema.schemaType.tables["pingLog"], "accessorName"> & { readonly accessorName: "ping_log" };
+    /** @deprecated Use `signalRoom` instead. This alias will be removed in the next major version. */
+    readonly "signal_room": Omit<typeof tablesSchema.schemaType.tables["signalRoom"], "accessorName"> & { readonly accessorName: "signal_room" };
   };
 };
 
@@ -106,6 +126,7 @@ const REMOTE_MODULE = {
 
 const tableAccessorAliases = {
   "ping_log": "pingLog",
+  "signal_room": "signalRoom",
 } as const;
 
 function __withTableAccessorAliases<T extends object>(target: T, freeze = false): T {
@@ -128,12 +149,16 @@ type __DbViewBase = __DbConnectionImpl<typeof REMOTE_MODULE>["db"];
 export type DbView = __DbViewBase & {
   /** @deprecated Use `pingLog` instead. This alias will be removed in the next major version. */
   readonly "ping_log": __DbViewBase["pingLog"];
+  /** @deprecated Use `signalRoom` instead. This alias will be removed in the next major version. */
+  readonly "signal_room": __DbViewBase["signalRoom"];
 };
 
 type __TablesBase = __QueryBuilder<typeof tablesSchema.schemaType>;
 export type Tables = __TablesBase & {
   /** @deprecated Use `pingLog` instead. This alias will be removed in the next major version. */
   readonly "ping_log": __TablesBase["pingLog"];
+  /** @deprecated Use `signalRoom` instead. This alias will be removed in the next major version. */
+  readonly "signal_room": __TablesBase["signalRoom"];
 };
 
 /** The tables available in this remote SpacetimeDB module. Each table reference doubles as a query builder. */

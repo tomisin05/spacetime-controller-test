@@ -22,6 +22,18 @@ pub struct PingLog {
     server_received_at: Timestamp,
 }
 
+// Temporary WebRTC signaling only. Controller input never passes through this
+// table; the host deletes the room as soon as the peer connection is paired.
+#[table(name = signal_room, public)]
+pub struct SignalRoom {
+    #[primary_key]
+    code: String,
+    host: Identity,
+    offer: String,
+    answer: String,
+    created_at: Timestamp,
+}
+
 #[reducer(client_connected)]
 pub fn identity_connected(ctx: &ReducerContext) {
     ctx.db.player().insert(Player {
@@ -42,6 +54,16 @@ pub fn identity_disconnected(ctx: &ReducerContext) {
     }
     if ctx.db.ping_log().identity().find(ctx.sender).is_some() {
         ctx.db.ping_log().identity().delete(ctx.sender);
+    }
+    let owned_rooms: Vec<String> = ctx
+        .db
+        .signal_room()
+        .iter()
+        .filter(|room| room.host == ctx.sender)
+        .map(|room| room.code)
+        .collect();
+    for code in owned_rooms {
+        ctx.db.signal_room().code().delete(code);
     }
 }
 
@@ -99,4 +121,53 @@ pub fn ping(ctx: &ReducerContext, client_sent_at: Timestamp) {
     } else {
         ctx.db.ping_log().insert(ping);
     }
+}
+
+#[reducer]
+pub fn create_signal_room(ctx: &ReducerContext, code: String, offer: String) -> Result<(), String> {
+    if code.len() != 6 || !code.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err("Room code must contain exactly six digits".to_string());
+    }
+    if offer.len() > 32_000 {
+        return Err("WebRTC offer is too large".to_string());
+    }
+    if ctx.db.signal_room().code().find(code.clone()).is_some() {
+        return Err("Room code is already in use".to_string());
+    }
+    ctx.db.signal_room().insert(SignalRoom {
+        code,
+        host: ctx.sender,
+        offer,
+        answer: String::new(),
+        created_at: ctx.timestamp,
+    });
+    Ok(())
+}
+
+#[reducer]
+pub fn answer_signal_room(ctx: &ReducerContext, code: String, answer: String) -> Result<(), String> {
+    if answer.len() > 32_000 {
+        return Err("WebRTC answer is too large".to_string());
+    }
+    let Some(mut room) = ctx.db.signal_room().code().find(code) else {
+        return Err("Room not found or already paired".to_string());
+    };
+    if !room.answer.is_empty() {
+        return Err("Room has already been answered".to_string());
+    }
+    room.answer = answer;
+    ctx.db.signal_room().code().update(room);
+    Ok(())
+}
+
+#[reducer]
+pub fn delete_signal_room(ctx: &ReducerContext, code: String) -> Result<(), String> {
+    let Some(room) = ctx.db.signal_room().code().find(code.clone()) else {
+        return Ok(());
+    };
+    if room.host != ctx.sender {
+        return Err("Only the room host can delete this room".to_string());
+    }
+    ctx.db.signal_room().code().delete(code);
+    Ok(())
 }

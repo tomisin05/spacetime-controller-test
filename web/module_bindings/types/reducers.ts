@@ -6,10 +6,16 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AnswerSignalRoomReducer from "../answer_signal_room_reducer";
+import CreateSignalRoomReducer from "../create_signal_room_reducer";
+import DeleteSignalRoomReducer from "../delete_signal_room_reducer";
 import PingReducer from "../ping_reducer";
 import RegisterAsDisplayReducer from "../register_as_display_reducer";
 import SendInputReducer from "../send_input_reducer";
 
+export type AnswerSignalRoomParams = __Infer<typeof AnswerSignalRoomReducer>;
+export type CreateSignalRoomParams = __Infer<typeof CreateSignalRoomReducer>;
+export type DeleteSignalRoomParams = __Infer<typeof DeleteSignalRoomReducer>;
 export type PingParams = __Infer<typeof PingReducer>;
 export type RegisterAsDisplayParams = __Infer<typeof RegisterAsDisplayReducer>;
 export type SendInputParams = __Infer<typeof SendInputReducer>;

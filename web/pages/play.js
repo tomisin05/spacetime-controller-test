@@ -1,5 +1,6 @@
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { Timestamp } from "spacetimedb";
 import { DbConnection } from "../module_bindings";
 
@@ -145,10 +146,14 @@ function waitForIce(connection) {
 function DirectPlay() {
   const peerRef = useRef(null);
   const channelRef = useRef(null);
+  const signalRef = useRef(null);
+  const pairedRef = useRef(false);
+  const roomCodeRef = useRef("");
   const inputRef = useRef({ x: 0, y: 0 });
   const positionRef = useRef({ x: 0, y: 0 });
-  const [offer, setOffer] = useState("");
-  const [answer, setAnswer] = useState("");
+  const [roomCode, setRoomCode] = useState("");
+  const [controllerUrl, setControllerUrl] = useState("");
+  const [pairingStatus, setPairingStatus] = useState("Creating room...");
   const [connected, setConnected] = useState(false);
   const [rtt, setRtt] = useState(null);
   const [players, setPlayers] = useState([]);
@@ -162,6 +167,8 @@ function DirectPlay() {
     channelRef.current = channel;
     channel.onopen = () => {
       setConnected(true);
+      setPairingStatus("Connected directly to phone");
+      if (roomCodeRef.current) signalRef.current?.reducers.deleteSignalRoom({ code: roomCodeRef.current });
       let previous = performance.now();
       movementInterval = setInterval(() => {
         const now = performance.now();
@@ -187,34 +194,56 @@ function DirectPlay() {
     (async () => {
       await peer.setLocalDescription(await peer.createOffer());
       await waitForIce(peer);
-      setOffer(encodeSignal(peer.localDescription));
+      const offer = encodeSignal(peer.localDescription);
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      roomCodeRef.current = code;
+      setRoomCode(code);
+      setControllerUrl(`${window.location.origin}/controller?mode=direct&room=${code}`);
+      let signalConnection;
+      signalConnection = DbConnection.builder().withUri(SPACETIME_URI).withDatabaseName(MODULE_NAME)
+        .onConnect((active) => {
+          active.subscriptionBuilder().onApplied(() => {
+            active.reducers.createSignalRoom({ code, offer });
+            setPairingStatus("Scan the QR code or enter the room code on the phone");
+          }).subscribe([`SELECT * FROM signal_room WHERE code = '${code}'`]);
+        })
+        .onConnectError((ctx, error) => setPairingStatus(`Pairing service error: ${error.message}`))
+        .build();
+      signalRef.current = signalConnection;
+      const acceptRoomAnswer = async (room) => {
+        if (!room.answer || pairedRef.current) return;
+        pairedRef.current = true;
+        try {
+          setPairingStatus("Completing direct connection...");
+          await peer.setRemoteDescription(decodeSignal(room.answer));
+          signalConnection.reducers.deleteSignalRoom({ code });
+        } catch (error) {
+          pairedRef.current = false;
+          setPairingStatus(`Pairing failed: ${error.message}`);
+        }
+      };
+      signalConnection.db.signalRoom.onInsert((ctx, room) => acceptRoomAnswer(room));
+      signalConnection.db.signalRoom.onUpdate((ctx, oldRoom, room) => acceptRoomAnswer(room));
     })();
 
     return () => {
       clearInterval(movementInterval);
       clearInterval(pingInterval);
+      if (signalRef.current && roomCodeRef.current) signalRef.current.reducers.deleteSignalRoom({ code: roomCodeRef.current });
+      signalRef.current?.disconnect();
       peer.close();
     };
   }, []);
-
-  async function acceptAnswer() {
-    try {
-      await peerRef.current.setRemoteDescription(decodeSignal(answer.trim()));
-    } catch (error) {
-      alert(`Could not accept answer: ${error.message}`);
-    }
-  }
 
   return <>
     <Display mode="direct" connected={connected} rtt={rtt} players={players} />
     {!connected && <div style={{ position: "fixed", left: 12, right: 12, bottom: 12, background: "#222", color: "#fff", padding: 12, fontFamily: "monospace" }}>
       <strong>Direct WebRTC pairing</strong>
-      <p>1. Copy this offer to the phone&apos;s Direct controller.</p>
-      <textarea readOnly value={offer || "Gathering local connection details..."} rows={3} style={{ width: "100%", boxSizing: "border-box" }} />
-      <button onClick={() => navigator.clipboard.writeText(offer)} disabled={!offer}>Copy offer</button>
-      <p>2. Paste the answer returned by the phone.</p>
-      <textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={3} style={{ width: "100%", boxSizing: "border-box" }} />
-      <button onClick={acceptAnswer} disabled={!answer.trim()}>Connect</button>
+      <p>{pairingStatus}</p>
+      {controllerUrl && <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ background: "white", padding: 8 }}><QRCodeSVG value={controllerUrl} size={160} /></div>
+        <div><div style={{ fontSize: 40, letterSpacing: 8 }}>{roomCode}</div><p>Scan with the phone camera or enter this code in Direct mode.</p></div>
+      </div>}
     </div>}
   </>;
 }

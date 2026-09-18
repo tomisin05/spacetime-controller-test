@@ -144,38 +144,75 @@ function waitForIce(connection) {
 function DirectController() {
   const peerRef = useRef(null);
   const channelRef = useRef(null);
-  const [offer, setOffer] = useState("");
-  const [answer, setAnswer] = useState("");
-  const [status, setStatus] = useState("Paste the offer from the laptop");
+  const signalRef = useRef(null);
+  const joiningRef = useRef(false);
+  const [roomCode, setRoomCode] = useState("");
+  const [status, setStatus] = useState("Enter the six-digit code shown on the laptop");
 
   useEffect(() => {
-    const hashOffer = new URLSearchParams(window.location.hash.slice(1)).get("offer");
-    if (hashOffer) setOffer(hashOffer);
-    return () => peerRef.current?.close();
+    const code = new URLSearchParams(window.location.search).get("room") || "";
+    if (/^\d{6}$/.test(code)) {
+      setRoomCode(code);
+      joinRoom(code);
+    }
+    return () => {
+      peerRef.current?.close();
+      signalRef.current?.disconnect();
+    };
   }, []);
 
-  async function createAnswer() {
+  async function answerRoom(room, connection) {
+    if (joiningRef.current || !room.offer) return;
+    joiningRef.current = true;
     try {
-      setStatus("Creating direct connection answer...");
+      setStatus("Pairing directly with laptop...");
       const peer = new RTCPeerConnection({ iceServers: [] });
       peerRef.current = peer;
       peer.ondatachannel = ({ channel }) => {
         channelRef.current = channel;
-        channel.onopen = () => setStatus("Connected directly to laptop");
+        channel.onopen = () => {
+          setStatus("Connected directly to laptop");
+          connection.disconnect();
+        };
         channel.onclose = () => setStatus("Direct connection closed");
         channel.onmessage = ({ data }) => {
           const message = JSON.parse(data);
           if (message.type === "ping" && channel.readyState === "open") channel.send(JSON.stringify({ type: "pong", sentAt: message.sentAt }));
         };
       };
-      await peer.setRemoteDescription(decodeSignal(offer.trim()));
+      await peer.setRemoteDescription(decodeSignal(room.offer));
       await peer.setLocalDescription(await peer.createAnswer());
       await waitForIce(peer);
-      setAnswer(encodeSignal(peer.localDescription));
-      setStatus("Send this answer back to the laptop");
+      connection.reducers.answerSignalRoom({ code: room.code, answer: encodeSignal(peer.localDescription) });
+      setStatus("Waiting for laptop to finish pairing...");
     } catch (error) {
       setStatus(`Pairing failed: ${error.message}`);
+      joiningRef.current = false;
     }
+  }
+
+  function joinRoom(rawCode = roomCode) {
+    const code = rawCode.trim();
+    if (!/^\d{6}$/.test(code)) {
+      setStatus("Room code must contain six digits");
+      return;
+    }
+    signalRef.current?.disconnect();
+    joiningRef.current = false;
+    setStatus("Finding room...");
+    let connection;
+    connection = DbConnection.builder().withUri(SPACETIME_URI).withDatabaseName(MODULE_NAME)
+      .onConnect((active) => {
+        active.subscriptionBuilder().onApplied(() => {
+          const room = [...active.db.signalRoom.iter()][0];
+          if (room) answerRoom(room, active);
+          else setStatus("Room not found. Check the code and try again.");
+        }).subscribe([`SELECT * FROM signal_room WHERE code = '${code}'`]);
+      })
+      .onConnectError((ctx, error) => setStatus(`Pairing service error: ${error.message}`))
+      .build();
+    signalRef.current = connection;
+    connection.db.signalRoom.onInsert((ctx, room) => answerRoom(room, connection));
   }
 
   const sendInput = (x, y) => {
@@ -183,15 +220,9 @@ function DirectController() {
   };
 
   return <Joystick mode="direct" status={status} rtt={null} onInput={sendInput}>
-    <div style={{ width: "min(92vw, 620px)", marginTop: 24 }}>
-      {!answer && <>
-        <textarea value={offer} onChange={(event) => setOffer(event.target.value)} placeholder="Paste laptop offer" rows={3} style={{ width: "100%", boxSizing: "border-box" }} />
-        <button onClick={createAnswer} disabled={!offer.trim()} style={{ marginTop: 8 }}>Create answer</button>
-      </>}
-      {answer && <>
-        <textarea readOnly value={answer} rows={3} style={{ width: "100%", boxSizing: "border-box" }} />
-        <button onClick={() => navigator.clipboard.writeText(answer)} style={{ marginTop: 8 }}>Copy answer</button>
-      </>}
+    <div style={{ width: "min(92vw, 360px)", marginTop: 24, textAlign: "center" }}>
+      <input inputMode="numeric" pattern="[0-9]*" maxLength={6} value={roomCode} onChange={(event) => setRoomCode(event.target.value.replace(/\D/g, ""))} placeholder="Room code" style={{ width: 180, fontSize: 28, textAlign: "center", letterSpacing: 6 }} />
+      <br /><button onClick={() => joinRoom()} disabled={roomCode.length !== 6} style={{ marginTop: 8 }}>Join room</button>
     </div>
   </Joystick>;
 }

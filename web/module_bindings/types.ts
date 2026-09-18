@@ -28,3 +28,12 @@ export const Player = __t.object("Player", {
 });
 export type Player = __Infer<typeof Player>;
 
+export const SignalRoom = __t.object("SignalRoom", {
+  code: __t.string(),
+  host: __t.identity(),
+  offer: __t.string(),
+  answer: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type SignalRoom = __Infer<typeof SignalRoom>;
+

@@ -84,18 +84,18 @@ normally be blocked from connecting to an insecure local `ws://` endpoint.
 
 ## Direct WebRTC mode
 
-Direct mode uses Vercel only to serve the pages. After a one-time manual
-pairing exchange, controller commands travel browser-to-browser over WebRTC
-without SpacetimeDB, a local Node server, or a database:
+Direct mode uses SpacetimeDB only for short-lived pairing. After pairing,
+controller commands travel browser-to-browser over WebRTC without passing
+through SpacetimeDB, a local Node server, or another database:
 
 1. Open `/play?mode=direct` on the laptop.
-2. Copy its offer into `/controller?mode=direct` on the phone.
-3. Tap **Create answer** on the phone and copy the answer back to the laptop.
-4. Paste the answer and tap **Connect**.
+2. Scan the displayed QR code with the phone, or open
+   `/controller?mode=direct` and enter the six-digit room code.
+3. The devices exchange their WebRTC offer and answer automatically.
+4. The temporary signaling room is deleted once paired.
 
-The pages intentionally use manual signaling so no signaling backend is
-required. Both devices should be on the same Wi-Fi. Maincloud mode remains the
-fallback for networks where direct peer connectivity is restricted.
+Both devices should be on the same Wi-Fi. Maincloud mode remains the fallback
+for networks where direct peer connectivity is restricted.
 
 ### Use the local server from Vercel
 
