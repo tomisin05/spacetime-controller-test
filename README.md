@@ -59,6 +59,29 @@ functions entirely. Vercel only ever serves the static/SSR pages.
 - Drag the joystick — the dot should move on the laptop screen
 - Both pages show live RTT to the SpacetimeDB server, refreshed every second
 
+## LAN mode
+
+LAN mode keeps all traffic on the local network. Start the web app and the
+authoritative WebSocket server in separate terminals:
+
+```bash
+cd web
+npm run dev:lan
+```
+
+```bash
+cd web
+npm run lan-server
+```
+
+Find the laptop's IPv4 address with `ipconfig`, then open
+`http://<laptop-ip>:3000/controller?mode=lan` on a phone connected to the same
+Wi-Fi. Open `http://localhost:3000/play?mode=lan` on the laptop. Allow TCP ports
+3000 and 8787 through the laptop firewall when prompted.
+
+LAN mode is intended for locally served HTTP pages. An HTTPS Vercel page will
+normally be blocked from connecting to an insecure local `ws://` endpoint.
+
 ## What this validates from your notes
 
 - **Input delay based on server↔local RTT**: both pages ping every second and
