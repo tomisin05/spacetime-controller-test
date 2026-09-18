@@ -1,0 +1,7 @@
+web/node_modules/
+web/.next/
+web/.env.local
+web/.vercel/
+server/target/
+.DS_Store
+Thumbs.db
