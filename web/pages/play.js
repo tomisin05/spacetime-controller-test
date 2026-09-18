@@ -28,13 +28,15 @@ function Display({ mode, connected, rtt, players, serverUrl }) {
     return () => cancelAnimationFrame(frame);
   }, [players]);
 
-  const controllerHref = mode === "lan" ? "/controller?mode=lan" : "/controller?mode=cloud";
+  const controllerHref = mode === "lan"
+    ? `/controller?mode=lan${serverUrl ? `&server=${encodeURIComponent(serverUrl)}` : ""}`
+    : "/controller?mode=cloud";
   return <div style={{ background: "#000", minHeight: "100vh", color: "#fff", fontFamily: "monospace" }}>
     <div style={{ padding: 12 }}>
       <strong>{mode === "lan" ? "LAN Display" : "Maincloud Display"}</strong> — {connected ? "connected" : "connecting..."}{rtt !== null && ` — RTT: ${rtt} ms`}
       <br />Connected controllers: {players.length}
       {serverUrl && <><br />Server: {serverUrl}</>}
-      <br /><a href={controllerHref} style={{ color: "#6cf" }}>Open matching controller</a>
+      <br /><a href={controllerHref} style={{ color: "#6cf" }}>Open or copy matching controller link</a>
       <span> · </span><a href={mode === "lan" ? "/play?mode=cloud" : "/play?mode=lan"} style={{ color: "#6f6" }}>Switch to {mode === "lan" ? "Cloud" : "LAN"}</a>
     </div>
     <canvas ref={canvasRef} width={600} height={600} style={{ display: "block", margin: "0 auto", maxWidth: "100%" }} />

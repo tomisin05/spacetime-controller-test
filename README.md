@@ -82,6 +82,41 @@ Wi-Fi. Open `http://localhost:3000/play?mode=lan` on the laptop. Allow TCP ports
 LAN mode is intended for locally served HTTP pages. An HTTPS Vercel page will
 normally be blocked from connecting to an insecure local `ws://` endpoint.
 
+### Use the local server from Vercel
+
+For testing without a domain or Cloudflare account, expose the WebSocket server
+through a temporary Cloudflare Quick Tunnel:
+
+Install `cloudflared` once on Windows (approve the installer prompt if shown):
+
+```powershell
+winget install --id Cloudflare.cloudflared
+```
+
+```bash
+cd web
+npm run lan-server
+```
+
+In a second terminal:
+
+```bash
+cd web
+npm run lan:tunnel
+```
+
+Copy the generated `https://...trycloudflare.com` URL and change its scheme to
+`wss://`. Then open the Vercel display with it as the `server` query parameter:
+
+```text
+https://YOUR-VERCEL-SITE/play?mode=lan&server=wss%3A%2F%2FYOUR-TUNNEL.trycloudflare.com
+```
+
+The display's **Open or copy matching controller link** preserves that server
+address. Share that link with the phone. Quick Tunnel addresses change whenever
+the tunnel restarts; a stable address requires a named Cloudflare Tunnel and a
+domain managed in Cloudflare.
+
 ## What this validates from your notes
 
 - **Input delay based on server↔local RTT**: both pages ping every second and

@@ -6,6 +6,7 @@
     "dev": "next dev",
     "dev:lan": "next dev --hostname 0.0.0.0",
     "lan-server": "node lan-server.js",
+    "lan:tunnel": "cloudflared tunnel --url http://localhost:8787",
     "build": "next build",
     "start": "next start"
   },
